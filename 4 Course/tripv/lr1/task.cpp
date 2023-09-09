@@ -22,6 +22,10 @@ int main(int argc, char *argv[])
 {
     int rank, size;
     int determinant = 0;
+    bool finishedProcesses[4] = {false,
+                                 false,
+                                 false,
+                                 false};
 
     int **matrix = readMatrixFromFile("data.txt", defaultMatrixSize);
 
@@ -51,12 +55,41 @@ int main(int argc, char *argv[])
         }
 
         int result;
+        int processesCount = defaultMatrixSize;
+        int count = 1;
 
-        for (int i = 1; i < size; i++)
+        while (count <= processesCount)
         {
-            MPI_Recv(&result, 1, MPI_INT, i, 99, MPI_COMM_WORLD, &status);
+            cout << "asking sources ... ";
+            for (int i = 0; i < 4; i++)
+            {
+                if (!finishedProcesses[i])
+                {
+                    cout << (i + 1) << " ";
+                }
+            }
+            cout << endl;
+            for (int i = 0; i < defaultMatrixSize; i++)
+            {
+                if (!finishedProcesses[i])
+                {
+                    int flag = false;
 
-            determinant += result;
+                    // MPI_Probe((i + 1), 99, MPI_COMM_WORLD, &status);
+                    MPI_Iprobe((i + 1), 99, MPI_COMM_WORLD, &flag, &status);
+
+                    if (flag)
+                    {
+                        MPI_Recv(&result, 1, MPI_INT, i + 1, 99, MPI_COMM_WORLD, &status);
+
+                        determinant += result;
+
+                        count++;
+
+                        finishedProcesses[i] = true;
+                    }
+                }
+            }
         }
 
         cout << endl
@@ -70,16 +103,25 @@ int main(int argc, char *argv[])
 
         int det = countVectorDet(vector);
 
+        cout << "Rank " << rank << " current matrix: " << endl;
+        for (int i = 0; i < minorMatrixSize * minorMatrixSize; i++)
+        {
+            if (i % 3 == 0)
+            {
+                cout << endl;
+            }
+            cout << vector[i] << "  ";
+        }
+        cout << endl;
+
         int answer = matrix[0][rank - 1] * pow(-1, rank + 1) * det;
+
+        cout << "Process rank " << rank << " determinant = " << matrix[0][rank - 1] << " * (-1)**" << rank + 1 << " * " << det << " = " << answer << endl;
 
         MPI_Send(&answer, 1, MPI_INT, 0, 99, MPI_COMM_WORLD);
 
         delete[] vector;
-
-        cout << "Process rank " << rank << " determinant = " << matrix[0][rank - 1] << " * (-1)**" << rank + 1 << " * " << det << " = " << answer << endl;
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Finalize();
 
