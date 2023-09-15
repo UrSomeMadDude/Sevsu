@@ -21,15 +21,6 @@ int minorMatrixSize = 3;
 int main(int argc, char *argv[])
 {
     int rank, size;
-    int determinant = 0;
-    bool finishedProcesses[4] = {false,
-                                 false,
-                                 false,
-                                 false};
-
-    int **matrix = readMatrixFromFile("data.txt", defaultMatrixSize);
-
-    int **triangleMatrix = allocate2DArray(3);
 
     MPI_Status status;
     MPI_Init(&argc, &argv);
@@ -38,6 +29,17 @@ int main(int argc, char *argv[])
 
     if (rank == 0)
     {
+
+        bool finishedProcesses[4] = {false,
+                                     false,
+                                     false,
+                                     false};
+
+        int **triangleMatrix = allocate2DArray(3);
+
+        int determinant = 0;
+
+        int **matrix = readMatrixFromFile("data.txt", defaultMatrixSize);
         cout << endl
              << "Initial matrix: " << endl
              << endl;
@@ -49,6 +51,7 @@ int main(int argc, char *argv[])
             int *vector = toVector(triangleMatrix, minorMatrixSize);
 
             MPI_Send(vector, (minorMatrixSize * minorMatrixSize), MPI_INT, (i + 1), 99, MPI_COMM_WORLD);
+            MPI_Send(&matrix[0][i], 1, MPI_INT, (i + 1), 99, MPI_COMM_WORLD);
 
             freeArray(triangleMatrix, minorMatrixSize);
             delete[] vector;
@@ -98,8 +101,10 @@ int main(int argc, char *argv[])
     else
     {
         int *vector = new int[minorMatrixSize * minorMatrixSize];
+        int a = 0;
 
         MPI_Recv(vector, (minorMatrixSize * minorMatrixSize), MPI_INT, 0, 99, MPI_COMM_WORLD, &status);
+        MPI_Recv(&a, 1, MPI_INT, 0, 99, MPI_COMM_WORLD, &status);
 
         int det = countVectorDet(vector);
 
@@ -114,9 +119,9 @@ int main(int argc, char *argv[])
         }
         cout << endl;
 
-        int answer = matrix[0][rank - 1] * pow(-1, rank + 1) * det;
+        int answer = a * pow(-1, rank + 1) * det;
 
-        cout << "Process rank " << rank << " determinant = " << matrix[0][rank - 1] << " * (-1)**" << rank + 1 << " * " << det << " = " << answer << endl;
+        cout << "Process rank " << rank << " determinant = " << a << " * (-1)**" << rank + 1 << " * " << det << " = " << answer << endl;
 
         MPI_Send(&answer, 1, MPI_INT, 0, 99, MPI_COMM_WORLD);
 
