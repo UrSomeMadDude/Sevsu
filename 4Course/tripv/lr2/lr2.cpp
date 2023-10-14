@@ -10,30 +10,79 @@ using namespace std;
 double **allocate2DArray(int size);
 void freeArray(double **matrix, int size);
 void displayMatrix(int size, double **matrix);
+double getMin(int size, double *vector);
+double getMax(int size, double *vector);
 
 int main(int argc, char *argv[])
 {
     int rank, size;
 
+    const int ROOT = 0;
+
     int matrSize = 10;
     int blockSize = matrSize * matrSize / 25;
 
-    double globalBlocks[blockSize + 1][25];
-
-    for (int i = 0; i < 25; i++)
-    {
-        globalBlocks[0][i] = 0;
-    }
+    double globalBlocks[5][25];
+    double globalMin;
+    double globalMax;
 
     double localVector[25];
+    double localMin;
+    double localMax;
 
     MPI_Status status;
 
-    MPI_Init(&argc, &argv);
+    int errCode;
+
+    if ((errCode = MPI_Init(&argc, &argv)) != 0)
+    {
+        return errCode;
+    }
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (rank == 0)
+    int min_ranks[5];
+    int max_ranks[5];
+    int min_c = 0, max_c = 0;
+
+    MPI_Comm min_comm, max_comm;
+    MPI_Group group_world, min_group, max_group;
+
+    MPI_Comm_group(MPI_COMM_WORLD, &group_world);
+
+    for (int i = 0; i < size; i++)
+    {
+        if (i == ROOT)
+        {
+            min_ranks[min_c] = i;
+            max_ranks[max_c] = i;
+            min_c++;
+            max_c++;
+        }
+
+        if ((i % 2 != 0) && (i != ROOT))
+        {
+            min_ranks[min_c] = i;
+            min_c++;
+        }
+
+        if ((i % 2 == 0) && (i != ROOT))
+        {
+            max_ranks[max_c] = i;
+            max_c++;
+        }
+    }
+
+    MPI_Group_incl(group_world, 5, min_ranks, &min_group);
+    MPI_Group_incl(group_world, 5, max_ranks, &max_group);
+
+    MPI_Comm_create(MPI_COMM_WORLD, min_group, &min_comm);
+    MPI_Comm_create(MPI_COMM_WORLD, max_group, &max_comm);
+
+    int subrank, subsize;
+
+    if (rank == ROOT)
     {
         double **A = allocate2DArray(matrSize);
 
@@ -52,12 +101,6 @@ int main(int argc, char *argv[])
 
         int count = 0;
 
-        double **blocks = new double *[blockSize];
-        for (int i = 0; i < blockSize; i++)
-        {
-            blocks[i] = new double[25];
-        }
-
         for (int i = 0; i < blockSize; i++)
         {
             if ((i % 2 == 0) && (i == 0))
@@ -67,7 +110,6 @@ int main(int argc, char *argv[])
                 {
                     for (int k = 0; k < matrSize / 2; k++)
                     {
-                        blocks[i][j * (matrSize / 2) + k] = A[j][k];
                         globalBlocks[i + 1][j * (matrSize / 2) + k] = A[j][k];
                     }
                 }
@@ -80,7 +122,6 @@ int main(int argc, char *argv[])
                 {
                     for (int k = 0; k < matrSize / 2; k++)
                     {
-                        blocks[i][(j - (matrSize / 2)) * (matrSize / 2) + k] = A[j][k];
                         globalBlocks[i + 1][(j - (matrSize / 2)) * (matrSize / 2) + k] = A[j][k];
                     }
                 }
@@ -93,7 +134,6 @@ int main(int argc, char *argv[])
                 {
                     for (int k = matrSize / 2; k < matrSize; k++)
                     {
-                        blocks[i][j * (matrSize / 2) + (k - (matrSize / 2))] = A[j][k];
                         globalBlocks[i + 1][j * (matrSize / 2) + (k - (matrSize / 2))] = A[j][k];
                     }
                 }
@@ -106,18 +146,21 @@ int main(int argc, char *argv[])
                 {
                     for (int k = matrSize / 2; k < matrSize; k++)
                     {
-                        blocks[i][(j - (matrSize / 2)) * (matrSize / 2) + (k - (matrSize / 2))] = A[j][k];
                         globalBlocks[i + 1][(j - (matrSize / 2)) * (matrSize / 2) + (k - (matrSize / 2))] = A[j][k];
                     }
                 }
             }
         }
 
-        cout << "Получившиеся блоки: " << endl;
+        for (int i = 0; i < 25; ++i)
+        {
+            globalBlocks[0][i] = globalBlocks[1][i];
+        }
 
+        cout << "Result blocks: " << endl;
         for (int l = 0; l < blockSize; l++)
         {
-            cout << "Блок №" << (l + 1) << ": ";
+            cout << "Block #" << (l + 1) << ": ";
             for (int m = 0; m < 25; m++)
             {
                 if (m % 5 == 0)
@@ -125,50 +168,59 @@ int main(int argc, char *argv[])
                     cout << endl;
                 }
 
-                cout << blocks[l][m] << "   ";
+                cout << globalBlocks[l][m] << "   ";
             }
             cout << endl;
         }
 
-        freeArray(blocks, blockSize);
+        globalMax = globalBlocks[0][0];
+        globalMin = globalBlocks[0][0];
+        localMax = globalBlocks[0][0];
+        localMin = globalBlocks[0][0];
 
         freeArray(A, matrSize);
     }
 
-    MPI_Scatter(globalBlocks, 25, MPI_DOUBLE, localVector, 25, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
     MPI_Barrier(MPI_COMM_WORLD);
 
-    cout << "Процесс №" << rank << " -> данные: " << endl;
-    for (int i = 0; i < 25; i++)
+    if (min_comm != MPI_COMM_NULL)
     {
-        if (i % 5 == 0)
-        {
-            cout << endl;
-        }
-        cout << localVector[i] << " ";
-        localVector[i] = 69;
+        cout << "Counting local minimumes..." << endl;
+
+        MPI_Comm_rank(min_comm, &subrank);
+        MPI_Comm_size(min_comm, &subsize);
+
+        MPI_Scatter(globalBlocks, 25, MPI_DOUBLE, localVector, 25, MPI_DOUBLE, ROOT, min_comm);
+
+        localMin = getMin(25, localVector);
+
+        cout << "Rank #" << subrank << " local min: " << localMin << endl;
+
+        MPI_Reduce(&localMin, &globalMin, 1, MPI_DOUBLE, MPI_MIN, ROOT, min_comm);
     }
 
-    cout << endl
-         << endl;
-
-    MPI_Gather(localVector, 25, MPI_DOUBLE, globalBlocks, 25, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    if (rank == 0)
+    if (max_comm != MPI_COMM_NULL)
     {
-        cout << "Процесс №" << rank << " -> данные:" << endl;
-        for (int i = 1; i < blockSize; i++)
-        {
-            for (int j = 0; j < 25; j++)
-            {
-                if (j % 10 == 0)
-                {
-                    cout << endl;
-                }
-                cout << globalBlocks[i][j] << "     ";
-            }
-        }
+        cout << "Counting local maximumes..." << endl;
+
+        MPI_Comm_rank(max_comm, &subrank);
+        MPI_Comm_size(max_comm, &subsize);
+
+        MPI_Scatter(globalBlocks, 25, MPI_DOUBLE, localVector, 25, MPI_DOUBLE, ROOT, max_comm);
+
+        localMax = getMax(25, localVector);
+
+        cout << "Rank #" << subrank << " local max: " << localMax << endl;
+
+        MPI_Reduce(&localMax, &globalMax, 1, MPI_DOUBLE, MPI_MAX, ROOT, max_comm);
+    }
+
+    if (rank == ROOT)
+    {
+        cout << endl
+             << "Global min: " << globalMin << endl;
+        cout << endl
+             << "Global max: " << globalMax << endl;
     }
 
     MPI_Finalize();
@@ -217,4 +269,34 @@ void displayMatrix(int size, double **matrix)
     }
 
     cout << endl;
+}
+
+double getMin(int size, double *vector)
+{
+    double min = vector[0];
+
+    for (int i = 1; i < size; ++i)
+    {
+        if (vector[i] < min)
+        {
+            min = vector[i];
+        }
+    }
+
+    return min;
+}
+
+double getMax(int size, double *vector)
+{
+    double max = vector[0];
+
+    for (int i = 1; i < size; ++i)
+    {
+        if (vector[i] > max)
+        {
+            max = vector[i];
+        }
+    }
+
+    return max;
 }
