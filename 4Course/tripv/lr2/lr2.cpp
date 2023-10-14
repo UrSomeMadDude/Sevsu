@@ -18,19 +18,15 @@ int main(int argc, char *argv[])
     int rank, size;
 
     const int ROOT = 0;
+    const int elementsForBlock = 25;
+    const int matrSize = 10;
+    const int blockSize = matrSize * matrSize / elementsForBlock;
 
-    int matrSize = 10;
-    int blockSize = matrSize * matrSize / 25;
-
-    double globalBlocks[5][25];
+    double globalBlocks[blockSize + 1][elementsForBlock];
     double globalMin;
     double globalMax;
 
-    double localVector[25];
-    double localMin;
-    double localMax;
-
-    MPI_Status status;
+    double localVector[elementsForBlock];
 
     int errCode;
 
@@ -42,14 +38,16 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int min_ranks[5];
-    int max_ranks[5];
+    int min_ranks[blockSize + 1];
+    int max_ranks[blockSize + 1];
     int min_c = 0, max_c = 0;
 
     MPI_Comm min_comm, max_comm;
     MPI_Group group_world, min_group, max_group;
 
     MPI_Comm_group(MPI_COMM_WORLD, &group_world);
+
+    // Распределение рангов матриц по критерию чётности номера ранга (корневой процесс идёт в оба массива)
 
     for (int i = 0; i < size; i++)
     {
@@ -74,13 +72,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    MPI_Group_incl(group_world, 5, min_ranks, &min_group);
-    MPI_Group_incl(group_world, 5, max_ranks, &max_group);
+    MPI_Group_incl(group_world, blockSize + 1, min_ranks, &min_group);
+    MPI_Group_incl(group_world, blockSize + 1, max_ranks, &max_group);
 
     MPI_Comm_create(MPI_COMM_WORLD, min_group, &min_comm);
     MPI_Comm_create(MPI_COMM_WORLD, max_group, &max_comm);
 
-    int subrank, subsize;
+    int subrank;
 
     if (rank == ROOT)
     {
@@ -97,9 +95,11 @@ int main(int argc, char *argv[])
             }
         }
 
+        cout << "Initial matrix: " << endl
+             << endl;
         displayMatrix(matrSize, A);
 
-        int count = 0;
+        // Разделение матрицы на 4 блока по n (25) элементов
 
         for (int i = 0; i < blockSize; i++)
         {
@@ -152,16 +152,18 @@ int main(int argc, char *argv[])
             }
         }
 
-        for (int i = 0; i < 25; ++i)
+        // Чтобы избежать ошибок памяти или неправильного расчёта min / max,
+        // присвоим 0 строке globalBlocks его 1 строку
+
+        for (int i = 0; i < elementsForBlock; ++i)
         {
             globalBlocks[0][i] = globalBlocks[1][i];
         }
 
-        cout << "Result blocks: " << endl;
-        for (int l = 0; l < blockSize; l++)
+        for (int l = 1; l < blockSize + 1; l++)
         {
-            cout << "Block #" << (l + 1) << ": ";
-            for (int m = 0; m < 25; m++)
+            cout << "Block #" << l << ": ";
+            for (int m = 0; m < elementsForBlock; m++)
             {
                 if (m % 5 == 0)
                 {
@@ -170,47 +172,55 @@ int main(int argc, char *argv[])
 
                 cout << globalBlocks[l][m] << "   ";
             }
-            cout << endl;
+            cout << endl
+                 << endl;
         }
+        cout << endl;
+
+        // база для подсчёта min / max
 
         globalMax = globalBlocks[0][0];
         globalMin = globalBlocks[0][0];
-        localMax = globalBlocks[0][0];
-        localMin = globalBlocks[0][0];
 
         freeArray(A, matrSize);
     }
+
+    // Синхронизация всех процессов
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (min_comm != MPI_COMM_NULL)
     {
-        cout << "Counting local minimumes..." << endl;
 
         MPI_Comm_rank(min_comm, &subrank);
-        MPI_Comm_size(min_comm, &subsize);
 
-        MPI_Scatter(globalBlocks, 25, MPI_DOUBLE, localVector, 25, MPI_DOUBLE, ROOT, min_comm);
+        // Раскидать значения globalBlocks[i] по процессам из группы min_group
 
-        localMin = getMin(25, localVector);
+        MPI_Scatter(globalBlocks, elementsForBlock, MPI_DOUBLE, localVector, elementsForBlock, MPI_DOUBLE, ROOT, min_comm);
+
+        double localMin = getMin(elementsForBlock, localVector);
 
         cout << "Rank #" << subrank << " local min: " << localMin << endl;
+
+        // Отдать локальный минимум корню для расчёта глобального минимума
 
         MPI_Reduce(&localMin, &globalMin, 1, MPI_DOUBLE, MPI_MIN, ROOT, min_comm);
     }
 
     if (max_comm != MPI_COMM_NULL)
     {
-        cout << "Counting local maximumes..." << endl;
 
         MPI_Comm_rank(max_comm, &subrank);
-        MPI_Comm_size(max_comm, &subsize);
 
-        MPI_Scatter(globalBlocks, 25, MPI_DOUBLE, localVector, 25, MPI_DOUBLE, ROOT, max_comm);
+        // Раскидать значения globalBlocks[i] по процессам из группы max_group
 
-        localMax = getMax(25, localVector);
+        MPI_Scatter(globalBlocks, elementsForBlock, MPI_DOUBLE, localVector, elementsForBlock, MPI_DOUBLE, ROOT, max_comm);
+
+        double localMax = getMax(elementsForBlock, localVector);
 
         cout << "Rank #" << subrank << " local max: " << localMax << endl;
+
+        // Отдать локальный максимум корню для расчёта глобального максимума
 
         MPI_Reduce(&localMax, &globalMax, 1, MPI_DOUBLE, MPI_MAX, ROOT, max_comm);
     }
