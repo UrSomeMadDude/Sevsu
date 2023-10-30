@@ -187,10 +187,14 @@ int main(int argc, char *argv[])
 
     // Синхронизация всех процессов
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Barrier(MPI_COMM_WORLD);
 
     if (min_comm != MPI_COMM_NULL)
     {
+
+        MPI_Barrier(min_comm);
+
+        cout << "Процесс группы MIN" << endl;
 
         MPI_Comm_rank(min_comm, &subrank);
 
@@ -200,7 +204,7 @@ int main(int argc, char *argv[])
 
         double localMin = getMin(elementsForBlock, localVector);
 
-        cout << "Rank #" << subrank << " local min: " << localMin << endl;
+        cout << "Rank #" << rank << " local min: " << localMin << endl;
 
         // Отдать локальный минимум корню для расчёта глобального минимума
 
@@ -210,6 +214,10 @@ int main(int argc, char *argv[])
     if (max_comm != MPI_COMM_NULL)
     {
 
+        MPI_Barrier(max_comm);
+
+        cout << "Процесс группы MAX" << endl;
+
         MPI_Comm_rank(max_comm, &subrank);
 
         // Раскидать значения globalBlocks[i] по процессам из группы max_group
@@ -218,7 +226,7 @@ int main(int argc, char *argv[])
 
         double localMax = getMax(elementsForBlock, localVector);
 
-        cout << "Rank #" << subrank << " local max: " << localMax << endl;
+        cout << "Rank #" << rank << " local max: " << localMax << endl;
 
         // Отдать локальный максимум корню для расчёта глобального максимума
 
