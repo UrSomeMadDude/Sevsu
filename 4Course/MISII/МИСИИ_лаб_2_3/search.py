@@ -181,7 +181,25 @@ def aStarSearch(problem, heuristic=nullHeuristic):
     Находит узел с наименьшей комбинированной стоимостью, включающей эвристику
     """
     "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-    util.raiseNotDefined()
+
+    root = problem.getStartState()
+    visited = set()
+    fringe = util.PriorityQueue()
+    fringe.push((root, [], 0), 0)
+    while not fringe.isEmpty():
+            location, path, cost = fringe.pop()
+            if problem.isGoalState(location):
+                return path
+            if location not in visited:
+                visited.add(location)
+                for x,y,z in problem.getSuccessors(location):
+                    if x not in visited:
+                        backwardCost = z + cost
+                        forwardCost = heuristic(x, problem)
+                        fx = backwardCost+forwardCost
+                        fringe.push((x, path + [y], backwardCost), fx)
+    return []
+    # util.raiseNotDefined()
 
 
 #Аббривиатуры

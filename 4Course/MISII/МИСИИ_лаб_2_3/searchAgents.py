@@ -295,14 +295,23 @@ class CornersProblem(search.SearchProblem):
         неполное состояние пространства игры Pacman)
         """
         "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+
+        return self.startingPosition, self.corners
 
     def isGoalState(self, state):
         """
         Проверяет, является ли это состояние поиска целевым состоянием задачи.
         """
         "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+         # print state[1]
+        curr, corners = state
+        # print curr
+        # print state
+        if len(corners) == 0:
+            return True
+        return False
 
     def getSuccessors(self, state):
         """
@@ -327,6 +336,17 @@ class CornersProblem(search.SearchProblem):
             #   hitsWall = self.walls[nextx][nexty]
 
             "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
+
+            currPos, corners = state
+            dx, dy = Actions.directionToVector(action)
+            x, y = currPos
+            nextx, nexty = int(x + dx), int(y + dy)
+            hitsWall = self.walls[nextx][nexty]
+            if not hitsWall:
+                nextPos = nextx, nexty
+                nextState = (nextPos, corners) if nextPos not in corners else (nextPos, tuple([i for i in corners if i != nextPos]))
+                cost = 1 #Given above
+                successors.append((nextState, action, cost))
 
         self._expanded += 1 # НЕ МЕНЯЙТЕ!
         return successors
@@ -362,7 +382,43 @@ def cornersHeuristic(state, problem):
     corners = problem.corners # Координаты углов
     walls = problem.walls # Стены лабиринта в виде объекта Grid (game.py)
     "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-    return 0 # Default to trivial solution
+
+    heuristic = 0
+    currPos, corners = state
+    cornersLeft = corners
+    referencePoint = currPos
+  
+    while len(cornersLeft) > 0:
+        closestCorner = closestPoint(referencePoint, cornersLeft)
+        heuristic += manhattanDistance(referencePoint, closestCorner)
+        referencePoint = closestCorner
+        cornersLeft = tuple([i for i in cornersLeft if i != closestCorner])
+  
+    return heuristic
+
+    # return 0 # Default to trivial solution
+
+#Used for food heuristic too
+def closestPoint (fromPoint, candidatesList):
+    if len(candidatesList) == 0:
+        return None
+
+    closestPoint = candidatesList[0]
+    closestCost = manhattanDistance(fromPoint, closestPoint)
+    for candidate in candidatesList[1:]:
+        thisCost = manhattanDistance(fromPoint, candidate)
+        if thisCost < closestCost:
+            closestCost = thisCost
+            closestPoint = candidate
+  
+    return closestPoint
+  
+def manhattanDistance (pointA, pointB):
+    return abs(pointA[0] - pointB[0]) + abs(pointA[1] - pointB[1])
+
+def euclideanDistance (pointA, pointB):
+    return (abs(pointA[0] - pointB[0])**2 + abs(pointA[1] - pointB[1])**2)**0.5
+
 
 class AStarCornersAgent(SearchAgent):
     "Агент SearchAgent  для FoodSearchProblem, использующий A*-поиск и  foodHeuristic"
@@ -389,6 +445,9 @@ class FoodSearchProblem:
 
     def getStartState(self):
         return self.start
+    
+    def getGameState(self):
+        return self.startingGameState
 
     def isGoalState(self, state):
         return state[1].count() == 0
@@ -457,6 +516,66 @@ def foodHeuristic(state, problem):
     """
     position, foodGrid = state
     "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
+    foodList = foodGrid.asList()
+    heuristic = 0
+    
+    if len(foodList) == 0:
+        return 0
+    
+    closestFood = closestPoint(position, foodList)
+    farthestFood = farthestPoint(position, foodList) 
+    heuristic = manhattanDistance(closestFood, position)
+    heuristic = heuristic + manhattanDistance(farthestFood, closestFood)
+
+    gameState = problem.getGameState()
+    d1 = mazeDistance(closestFood, position, gameState)
+    d2 = mazeDistance(farthestFood, closestFood, gameState)
+    d3 = mazeDistance(farthestFood, position, gameState)
+    
+    leftPoints = 0
+    for (x,y) in foodList:
+        flag = 0
+        if x!=farthestFood[0] and x!=closestFood[0]:
+            leftPoints = leftPoints + 1
+            flag = 1
+        
+        if flag == 0:
+            if y!=farthestFood[1] and y!=closestFood[1]:
+                leftPoints = leftPoints + 1
+    
+    #return (heuristic + leftPoints/2)   7988 nodes
+    #return d1    7954 nodes
+    #return d1 + leftPoints/2  7300 nodes
+    #6900 nodes
+    #return d1 + 3*leftPoints/4
+
+    leftPoints2 = 0
+    for (x,y) in foodList:
+        flag = 0
+        if x!=position[0] and x!=closestFood[0]:
+            leftPoints2 = leftPoints2 + 1
+            flag = 1
+        
+        if flag == 0:
+            if y!=position[1] and y!=closestFood[1]:
+                leftPoints2 = leftPoints2 + 1
+    
+    #5543 nodes
+    return d1 + leftPoints2
+
+def farthestPoint (fromPoint, candidatesList):
+    if len(candidatesList) == 0:
+        return None
+
+    farthestPoint = candidatesList[0]
+    farthestCost = manhattanDistance(fromPoint, farthestPoint)
+    for candidate in candidatesList[1:]:
+        thisCost = manhattanDistance(fromPoint, candidate)
+        if thisCost > farthestCost:
+            farthestCost = thisCost
+            farthestPoint = candidate
+  
+    return farthestPoint
     return 0
 
 class ClosestDotSearchAgent(SearchAgent):
@@ -488,7 +607,8 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
    
         "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+        return search.aStarSearch(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -524,7 +644,9 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         x,y = state
 
         "*** ВСТАВЬТЕ ВАШ КОД СЮДА ***"
-        util.raiseNotDefined()
+        # util.raiseNotDefined()
+
+        return self.food[x][y]
 
 def mazeDistance(point1, point2, gameState):
     """
