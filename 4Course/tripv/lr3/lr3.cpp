@@ -59,17 +59,17 @@ int main(int argc, char *argv[])
     if (rank == masterProcess)
     {
         int dataA[N][N] = {
-            {23, 93, 67, 35},
-            {90, 20, 55, 68},
-            {14, 96, 39, 66},
-            {44, 26, 88, 25},
+            {1, 2, 3, 4},
+            {5, 6, 7, 8},
+            {9, 10, 11, 12},
+            {13, 14, 15, 16},
         };
 
         int dataB[N][N] = {
-            {58, 66, 32, 12},
-            {44, 79, 16, 65},
-            {98, 31, 90, 73},
-            {27, 32, 66, 39},
+            {1, 2, 3, 4},
+            {5, 6, 7, 8},
+            {9, 10, 11, 12},
+            {13, 14, 15, 16},
         };
 
         for (int i = 0; i < N; i++)
@@ -100,7 +100,6 @@ int main(int argc, char *argv[])
     // Производим вычисления
     for (int i = 0; i < N; i++)
     {
-
         rowC[columnIndex] = 0;
         for (int j = 0; j < N; j++)
         {
@@ -115,7 +114,7 @@ int main(int argc, char *argv[])
 
         if (rank == masterProcess)
         {
-            C[rank][columnIndex] = rowC[columnIndex];
+            C[rank][columnIndex] += rowC[columnIndex];
             showMatrix(C, "NOW looks like:");
             MPI_Send(C, N * N, MPI_INT, (rank + 1), 0, MPI_COMM_WORLD);
             MPI_Recv(C, N * N, MPI_INT, processes - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -123,14 +122,14 @@ int main(int argc, char *argv[])
         else if (rank == processes - 1)
         {
             MPI_Recv(C, N * N, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            C[rank][columnIndex] = rowC[columnIndex];
+            C[rank][columnIndex] += rowC[columnIndex];
             showMatrix(C, "NOW looks like:");
             MPI_Send(C, N * N, MPI_INT, masterProcess, 0, MPI_COMM_WORLD);
         }
         else
         {
             MPI_Recv(C, N * N, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            C[rank][columnIndex] = rowC[columnIndex];
+            C[rank][columnIndex] += rowC[columnIndex];
             showMatrix(C, "NOW looks like:");
             MPI_Send(C, N * N, MPI_INT, (rank + 1), 0, MPI_COMM_WORLD);
         }
