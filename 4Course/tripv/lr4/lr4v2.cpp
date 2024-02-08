@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
 
         while (!clientsSatisfied)
         {
-            sleep(1);
-            //  cout << "Cathing messages ..." << endl;
+            // sleep(1);
+            //   cout << "Cathing messages ..." << endl;
             cout << "Queue state" << endl;
             for (int i = 0; i < RESOURCES_NUM; ++i)
             {
@@ -78,8 +78,10 @@ int main(int argc, char *argv[])
                 cout << endl;
             }
 
-            MPI_Irecv(&req, 1, MPI_MESSAGE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &request); // get message
-            MPI_Wait(&request, &status);
+            // MPI_Irecv(&req, 1, MPI_MESSAGE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &request); // get message
+            // MPI_Wait(&request, &status);
+
+            MPI_Recv(&req, 1, MPI_MESSAGE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
             if (req.operation == 'P') // if it's capture
             {
