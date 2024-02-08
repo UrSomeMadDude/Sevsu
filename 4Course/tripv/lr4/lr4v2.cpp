@@ -127,8 +127,10 @@ int main(int argc, char *argv[])
         message msg;
         while (!clientsSatisfied)
         {
-            MPI_Irecv(&msg, 1, MPI_MESSAGE, SERVER_RANK, MPI_ANY_TAG, MPI_COMM_WORLD, &request); // recv message
-            MPI_Wait(&request, &status);
+            // MPI_Irecv(&msg, 1, MPI_MESSAGE, SERVER_RANK, MPI_ANY_TAG, MPI_COMM_WORLD, &request); // recv message
+            // MPI_Wait(&request, &status);
+
+            MPI_Recv(&msg, 1, MPI_MESSAGE, SERVER_RANK, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 
             for (int i = 0; i < DATASIZE; ++i)
             {
