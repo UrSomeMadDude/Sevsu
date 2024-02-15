@@ -239,7 +239,7 @@ proc(8):-
         write('Here is the list of people born in this month: '), write(Month), write(':'), nl,
         print_zodiacs(Ids)
     ).  
-    print_products([]).
+    print_zodiacs([]).
 
 print_zodiacs([zodiac(_, fullName(FirstName, LastName), ZodiacSign, dateOfBirth(Day, Month, Year))|Rest]) :-
     write('Full Name: '),
@@ -251,6 +251,7 @@ print_zodiacs([zodiac(_, fullName(FirstName, LastName), ZodiacSign, dateOfBirth(
     write(Day), write(' '),
     write(Month), write(' '),
     write(Year), nl,
-    print_products(Rest).
+    get0(C),
+    print_zodiacs(Rest).
 
 proc(9):-write('Bye-bye, pookie.'),nl.
